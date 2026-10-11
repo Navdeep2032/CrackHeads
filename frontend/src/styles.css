@@ -46,5 +46,14 @@ input { width: 100%; border: 1px solid #dbe3dc; border-radius: 9px; padding: 10p
 .member-card b { position: absolute; right: 13px; bottom: 13px; color: #0a9b6b; font-size: 1.05rem; }
 .person-result { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-top: 1px solid #e9eee9; padding: 15px 0; } .person-result b { font-size: 1.2rem; white-space: nowrap; color: #12372a; } .person-result p { color: #68786e; white-space: pre-line; line-height: 1.45; margin: 6px 0 0; font-size: .9rem; }
 footer { text-align: center; color: #98a59d; font-size: .8rem; margin-top: 28px; }
+.mode-pill-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: .78rem; color: #718078; }
+.mode-toggle { display: inline-flex; background: #edf3ec; border-radius: 999px; padding: 2px; gap: 2px; }
+.mode-btn { border: 0; background: transparent; color: #556c5c; padding: 4px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .15s ease; }
+.mode-btn.active { background: #12372a; color: #ffffff; }
+.ratio-controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 8px; padding: 10px; background: #f7faf7; border: 1px solid #e1ebe0; border-radius: 10px; }
+.ratio-card { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; }
+.ratio-input-row { display: flex; align-items: center; gap: 5px; }
+.ratio-input { width: 55px; padding: 4px 6px; font-size: .85rem; text-align: center; }
+.pct-badge { font-size: .7rem; color: #3b6540; font-weight: 700; }
 @media (max-width: 720px) { .workspace-grid { grid-template-columns: 1fr; } .people-panel { order: -1; } }
 @media (max-width: 600px) { .shell { padding: 18px 12px 32px; } .item-grid, .table-head { grid-template-columns: 1fr 52px 78px 78px; gap: 5px; } .item-grid input { padding: 8px 5px; font-size: .82rem; } .panel { padding: 15px; border-radius: 18px; } .people-grid { grid-template-columns: 1fr; } .item-fields { grid-template-columns: 1fr 1fr; } .item-fields label:first-child { grid-column: 1 / -1; } .workspace-title { margin-top: 18px; } }

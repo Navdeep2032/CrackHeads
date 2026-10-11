@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
-from typing import Dict, Iterable, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 
 CENT = Decimal("0.01")
@@ -45,13 +45,14 @@ def _allocate(total: Decimal, weights: Mapping[str, Decimal]) -> Dict[str, Decim
 def split_bill(
     receipt: Mapping[str, object],
     people: Sequence[str],
-    assignments: Mapping[int, Iterable[str]],
+    assignments: Mapping[int, Any],
 ) -> Dict[str, object]:
     """Split a receipt by item index and return exact per-person totals.
 
-    ``assignments`` maps each item index to one or more people. Multiple people
-    share that item's amount equally. Unassigned items and invalid people are
-    reported as warnings rather than silently dropped.
+    ``assignments`` maps each item index to either:
+      - an Iterable of people names (who share that item's amount equally).
+      - a Mapping of person name to ratio/weight (e.g. {"Asha": 2, "Ravi": 1}).
+    Unassigned items and invalid people are reported as warnings rather than silently dropped.
     """
     names = list(dict.fromkeys(str(person).strip() for person in people if str(person).strip()))
     if not names:
@@ -63,16 +64,33 @@ def split_bill(
     item_breakdown: List[Dict[str, object]] = []
 
     for index, item in enumerate(items):
-        assigned = list(dict.fromkeys(str(name) for name in assignments.get(index, [])))
-        invalid = [name for name in assigned if name not in allowed]
+        raw_assigned = assignments.get(index, [])
+        weights: Dict[str, Decimal] = {}
+        if isinstance(raw_assigned, Mapping):
+            for name, weight in raw_assigned.items():
+                person_name = str(name).strip()
+                try:
+                    val = Decimal(str(weight))
+                    if val > 0:
+                        weights[person_name] = val
+                except Exception:
+                    pass
+        elif isinstance(raw_assigned, Iterable) and not isinstance(raw_assigned, (str, bytes)):
+            for name in raw_assigned:
+                person_name = str(name).strip()
+                if person_name:
+                    weights[person_name] = Decimal("1")
+
+        invalid = [name for name in weights if name not in allowed]
         if invalid:
             warnings.append(f"Item {index} has unknown people: {', '.join(invalid)}.")
-            assigned = [name for name in assigned if name in allowed]
-        if not assigned:
+            for name in invalid:
+                del weights[name]
+        if not weights:
             warnings.append(f"Item {index} is unassigned.")
             continue
         total = _money(item.get("total", 0))  # type: ignore[union-attr]
-        allocation = _allocate(total, {name: Decimal("1") for name in assigned})
+        allocation = _allocate(total, weights)
         for name, amount in allocation.items():
             shares[name] += amount
         item_breakdown.append(

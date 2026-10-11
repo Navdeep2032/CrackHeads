@@ -67,7 +67,7 @@ def load_model():
 class SplitRequest(BaseModel):
     receipt: Dict[str, Any]
     people: List[str] = Field(min_length=1)
-    assignments: Dict[int, List[str]] = Field(default_factory=dict)
+    assignments: Dict[int, Any] = Field(default_factory=dict)
 
 
 def parse_model_json(text: str) -> Dict[str, Any] | None:

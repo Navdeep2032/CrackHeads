@@ -37,6 +37,8 @@ function itemNeedsReview(item: Item) {
     || (item.confidence !== undefined && item.confidence < 95);
 }
 
+type SplitMode = "equal" | "ratio";
+
 export default function App() {
   const [file, setFile] = useState<File>();
   const [receipt, setReceipt] = useState<Receipt>();
@@ -44,7 +46,9 @@ export default function App() {
   const [statusKind, setStatusKind] = useState<"neutral" | "ok" | "warn" | "error">("neutral");
   const [peopleCount, setPeopleCount] = useState(2);
   const [peopleNames, setPeopleNames] = useState(["", ""]);
+  const [splitModes, setSplitModes] = useState<Record<number, SplitMode>>({});
   const [assignments, setAssignments] = useState<Record<number, string[]>>({});
+  const [ratios, setRatios] = useState<Record<number, Record<string, number>>>({});
   const [split, setSplit] = useState<SplitResult>();
   const [reviewWarnings, setReviewWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -89,6 +93,8 @@ export default function App() {
       if (!payload.receipt) throw new Error("The model could not produce a receipt. Please try again.");
       setReceipt(payload.receipt);
       setAssignments({});
+      setSplitModes({});
+      setRatios({});
       setReviewWarnings(payload.repair?.warnings || []);
       setStatus(payload.repair?.consistent ? "Receipt extracted and validated." : "Receipt extracted. Review the highlighted values.");
       setStatusKind(payload.repair?.consistent ? "ok" : "warn");
@@ -147,6 +153,40 @@ export default function App() {
     });
   }
 
+  function setItemMode(index: number, mode: SplitMode) {
+    setSplitModes((current) => ({ ...current, [index]: mode }));
+    if (mode === "ratio") {
+      setRatios((current) => {
+        if (current[index]) return current;
+        const currentAssigned = assignments[index] || [];
+        const initial: Record<string, number> = {};
+        people.forEach((p) => {
+          initial[p] = currentAssigned.includes(p) ? 1 : 0;
+        });
+        return { ...current, [index]: initial };
+      });
+    }
+  }
+
+  function updateRatio(index: number, person: string, value: string) {
+    const numeric = Math.max(0, Number(value) || 0);
+    setRatios((current) => ({
+      ...current,
+      [index]: {
+        ...(current[index] || {}),
+        [person]: numeric,
+      },
+    }));
+  }
+
+  function isPersonAssigned(index: number, person: string) {
+    const mode = splitModes[index] || "equal";
+    if (mode === "ratio") {
+      return Number((ratios[index] || {})[person] || 0) > 0;
+    }
+    return (assignments[index] || []).includes(person);
+  }
+
   async function calculateSplit() {
     if (!receipt || people.length !== peopleCount) {
       setStatus("Add a name for every person before calculating the split.");
@@ -155,10 +195,25 @@ export default function App() {
     }
     setBusy(true);
     try {
+      const payloadAssignments: Record<number, string[] | Record<string, number>> = {};
+      receipt.items.forEach((_, index) => {
+        const mode = splitModes[index] || "equal";
+        if (mode === "ratio") {
+          const itemRatio = ratios[index] || {};
+          const active: Record<string, number> = {};
+          for (const [name, weight] of Object.entries(itemRatio)) {
+            if (Number(weight) > 0) active[name] = Number(weight);
+          }
+          payloadAssignments[index] = active;
+        } else {
+          payloadAssignments[index] = assignments[index] || [];
+        }
+      });
+
       const response = await fetch(`${API_URL}/split`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receipt, people, assignments }),
+        body: JSON.stringify({ receipt, people, assignments: payloadAssignments }),
       });
       const payload = await response.json() as SplitResult & { detail?: string };
       if (!response.ok) throw new Error(payload.detail || "Could not calculate split");
@@ -209,10 +264,74 @@ export default function App() {
             {receipt.items.map((item, index) => {
               const flagged = itemNeedsReview(item);
               const confidence = item.confidence;
+              const mode = splitModes[index] || "equal";
               return <article className={`item-card ${flagged ? "flagged" : ""}`} key={index}>
                 <div className="item-card-top"><input className="item-name" value={item.name} onChange={(event) => updateItem(index, "name", event.target.value)} /><span className={`confidence ${flagged ? "low" : ""}`}>{confidence !== undefined ? `${confidence.toFixed(0)}% ${flagged ? "⚠ Review" : "✓ Confident"}` : flagged ? "⚠ Review" : "✓ Ready"}</span></div>
                 <div className="item-fields"><label>Qty<input type="number" value={item.qty} onChange={(event) => updateItem(index, "qty", event.target.value)} /></label><label>Price / piece (₹)<input type="number" value={item.unit_price} onChange={(event) => updateItem(index, "unit_price", event.target.value)} /></label><label>Total (₹)<input type="number" value={item.total} onChange={(event) => updateItem(index, "total", event.target.value)} /></label></div>
-                <div className="assignment-row"><span>Assigned to:</span>{people.map((person) => <button className={`chip ${(assignments[index] || []).includes(person) ? "selected" : ""}`} key={person} onClick={() => toggleAssignment(index, person)}>{(assignments[index] || []).includes(person) ? "✓ " : "+ "}{person}</button>)}</div>
+                
+                <div className="mode-pill-row">
+                  <span>Split mode:</span>
+                  <div className="mode-toggle">
+                    <button
+                      type="button"
+                      className={`mode-btn ${mode === "equal" ? "active" : ""}`}
+                      onClick={() => setItemMode(index, "equal")}
+                    >
+                      Equal
+                    </button>
+                    <button
+                      type="button"
+                      className={`mode-btn ${mode === "ratio" ? "active" : ""}`}
+                      onClick={() => setItemMode(index, "ratio")}
+                    >
+                      Custom Ratio
+                    </button>
+                  </div>
+                </div>
+
+                {mode === "equal" ? (
+                  <div className="assignment-row">
+                    <span>Assigned to:</span>
+                    {people.map((person) => (
+                      <button
+                        type="button"
+                        className={`chip ${(assignments[index] || []).includes(person) ? "selected" : ""}`}
+                        key={person}
+                        onClick={() => toggleAssignment(index, person)}
+                      >
+                        {(assignments[index] || []).includes(person) ? "✓ " : "+ "}{person}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="ratio-controls">
+                    {people.map((person) => {
+                      const personRatio = Number((ratios[index] || {})[person] || 0);
+                      const totalRatio = people.reduce((sum, p) => sum + Number((ratios[index] || {})[p] || 0), 0);
+                      const pct = totalRatio > 0 && personRatio > 0 ? ((personRatio / totalRatio) * 100).toFixed(0) : "0";
+                      return (
+                        <div className="ratio-card" key={person}>
+                          <div className="ratio-input-row">
+                            <strong>{person}</strong>
+                            {totalRatio > 0 && personRatio > 0 && <span className="pct-badge">({pct}%)</span>}
+                          </div>
+                          <div className="ratio-input-row">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              className="ratio-input"
+                              value={personRatio || ""}
+                              placeholder="0"
+                              onChange={(e) => updateRatio(index, person, e.target.value)}
+                            />
+                            <span>shares</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </article>;
             })}
             <button className="text-button" onClick={() => updateReceipt({ ...receipt, items: [...receipt.items, { name: "", qty: 1, unit_price: 0, total: 0 }] })}>+ Add item</button>
@@ -223,7 +342,7 @@ export default function App() {
           </section>
           <aside className="panel people-panel">
             <div className="section-heading"><div><h3>Named members</h3><p className="muted">Choose who shared each item.</p></div></div>
-            {people.map((person) => <div className="member-card" key={person}><strong>{person}</strong><span>{Object.values(assignments).filter((names) => names.includes(person)).length} assigned item(s)</span>{split && <b>₹{split.people.find((entry) => entry.name === person)?.amount || "0.00"}</b>}</div>)}
+            {people.map((person) => <div className="member-card" key={person}><strong>{person}</strong><span>{receipt.items.filter((_, idx) => isPersonAssigned(idx, person)).length} assigned item(s)</span>{split && <b>₹{split.people.find((entry) => entry.name === person)?.amount || "0.00"}</b>}</div>)}
             <button className="primary wide" onClick={calculateSplit} disabled={busy}>{busy ? "Calculating…" : "Calculate split"}</button>
           </aside>
         </div>
