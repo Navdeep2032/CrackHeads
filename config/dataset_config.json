@@ -1,0 +1,39 @@
+{
+  "seed": 42,
+  "splits": {
+    "train": 0.8,
+    "validation": 0.1,
+    "test": 0.1
+  },
+  "sources": [
+    {
+      "name": "cord",
+      "image_dir": "data/raw/cord/images",
+      "records": "data/raw/cord/records.jsonl"
+    },
+    {
+      "name": "sroie",
+      "image_dir": "data/raw/sroie/images",
+      "records": "data/raw/sroie/records.jsonl"
+    },
+    {
+      "name": "indian_real",
+      "image_dir": "data/raw/indian_real/images",
+      "records": "data/raw/indian_real/records.jsonl",
+      "required": false
+    }
+  ],
+  "augmentation": {
+    "enabled_for": ["train"],
+    "copies_per_image": 1,
+    "probability": 0.75,
+    "max_rotation_degrees": 3,
+    "brightness_range": [0.85, 1.15],
+    "blur_probability": 0.2
+  },
+  "training_quality": {
+    "exclude_severe_cord_arithmetic_errors": true,
+    "minimum_error": 100.0,
+    "relative_error": 0.2
+  }
+}
