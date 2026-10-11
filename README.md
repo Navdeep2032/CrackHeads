@@ -2,6 +2,20 @@
 
 SplitSnap is a receipt extraction and bill-splitting application built for the Track 1 challenge.
 
+## 🎬 Demo Video
+
+A full walkthrough of the app — receipt upload, item extraction, person assignment, and bill splitting — is included in the repository:
+
+**[▶ Watch ShowCase.mp4](ShowCase.mp4)**
+
+## 📦 Data & Model Weights
+
+The training datasets and fine-tuned model weights are hosted on Google Drive (too large for Git):
+
+**[📁 Download from Google Drive](https://drive.google.com/drive/folders/1uBve7D8FERtXr8wguiiPAzQwTlg69LrI?usp=sharing)**
+
+Place model weights at `models/receipt_model/` and datasets under `data/` after downloading.
+
 ## Current status
 
 This repository now includes the first two steps of the project plan:
